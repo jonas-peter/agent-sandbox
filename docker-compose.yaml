@@ -1,0 +1,70 @@
+# docker-compose.yml
+# Universal sandbox setup for Claude Code and OpenCode
+# Place in ~/.agent-sandbox/ and invoke from any project directory
+# Replicates official `docker sandbox run claude` credential persistence
+# See: https://docs.docker.com/ai/sandboxes/claude-code/
+
+services:
+  claude:
+    image: docker/sandbox-templates:claude-code
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+    environment:
+      - COLORTERM=truecolor
+    # Replicate official docker sandbox symlink approach
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Remove baked-in config from image
+        rm -rf /home/agent/.claude /home/agent/.claude.json /home/agent/.claude.json.backup
+        # Create symlinks to persistent volume (same as docker sandbox CLI)
+        ln -sf /mnt/claude-data/.claude /home/agent/.claude
+        ln -sf /mnt/claude-data/.claude.json /home/agent/.claude.json
+        ln -sf /mnt/claude-data/.claude.json.backup /home/agent/.claude.json.backup
+        # Initialize dirs/files if first run
+        mkdir -p /mnt/claude-data/.claude
+        # Ensure .claude.json exists (copy from backup or create minimal)
+        [ -f /mnt/claude-data/.claude.json ] || cp /mnt/claude-data/.claude.json.backup /mnt/claude-data/.claude.json 2>/dev/null || echo '{}' > /mnt/claude-data/.claude.json
+        # Start claude
+        exec claude
+    volumes:
+      # Mount the directory from which the script was invoked
+      - ${WORKSPACE_DIR}:/workspace:z
+      - claude-data:/mnt/claude-data:z  # Mount at /mnt/claude-data like official sandbox
+
+  opencode:
+    image: ghcr.io/anomalyco/opencode
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+    environment:
+      - COLORTERM=truecolor
+      - TERM=xterm-256color
+      - OPENCODE_CONFIG_DIR=/mnt/opencode-data/.config/opencode
+    # Use same symlink approach as Claude for credential persistence
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Remove any baked-in config from image
+        rm -rf ~/.config/opencode ~/.local/share/opencode
+        # Create symlinks to persistent volume
+        mkdir -p /mnt/opencode-data/.config
+        mkdir -p /mnt/opencode-data/.local/share
+        ln -sf /mnt/opencode-data/.config/opencode ~/.config/opencode
+        ln -sf /mnt/opencode-data/.local/share/opencode ~/.local/share/opencode
+        # Initialize directories if first run
+        mkdir -p /mnt/opencode-data/.config/opencode
+        mkdir -p /mnt/opencode-data/.local/share/opencode
+        # Start opencode
+        exec opencode
+    volumes:
+      # Mount the directory from which the script was invoked
+      - ${WORKSPACE_DIR}:/workspace:z
+      - opencode-data:/mnt/opencode-data:z  # Mount at /mnt/opencode-data for config/auth persistence
+
+volumes:
+  claude-data:
+    name: docker-claude-sandbox-data
+  opencode-data:
+    name: docker-opencode-sandbox-data
