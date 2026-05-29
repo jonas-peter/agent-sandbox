@@ -5,7 +5,16 @@
 # See: https://docs.docker.com/ai/sandboxes/claude-code/
 
 services:
+  claude-init:
+    image: docker/sandbox-templates:claude-code
+    user: root
+    command: chown -R agent:agent /mnt/claude-data
+    volumes:
+      - claude-data:/mnt/claude-data:z
   claude:
+    depends_on:
+      claude-init:
+        condition: service_completed_successfully
     image: docker/sandbox-templates:claude-code
     stdin_open: true
     tty: true
